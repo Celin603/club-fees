@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>羽球社分帳</title>
+<style>
+  :root {
+    --bg: #f4f6f3;
+    --card: #ffffff;
+    --ink: #1f2a24;
+    --muted: #6b7670;
+    --line: #dfe5e1;
+    --accent: #2f7d5b;
+    --accent-soft: #e4f1ea;
+    --new: #c06a1b;
+    --new-soft: #fbeedf;
+    --warn: #a33b2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 60px; }
+  header h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: .02em; }
+  header p { margin: 0 0 22px; color: var(--muted); font-size: .95rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 20px 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 { margin: 0 0 14px; font-size: 1.05rem; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 16px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: .88rem; color: var(--muted); margin-bottom: 5px; }
+  .field { position: relative; }
+  input[type=number], input[type=text], input[type=date], textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 1.05rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fbfcfb;
+    color: var(--ink);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+  .unit { position: absolute; right: 12px; bottom: 11px; color: var(--muted); font-size: .9rem; pointer-events: none; }
+  .hint { font-size: .82rem; color: var(--muted); margin-top: 5px; }
+  textarea { min-height: 72px; resize: vertical; font-size: .98rem; }
+
+  .result-head { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pay {
+    flex: 1 1 200px;
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .pay.reg { background: var(--accent-soft); }
+  .pay.nw { background: var(--new-soft); }
+  .pay .who { font-size: .9rem; color: var(--muted); }
+  .pay .amt { font-size: 2rem; font-weight: 700; line-height: 1.2; }
+  .pay.reg .amt { color: var(--accent); }
+  .pay.nw .amt { color: var(--new); }
+  .pay .exact { font-size: .82rem; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  td, th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total td { font-weight: 700; border-bottom: none; }
+  .tag { display: inline-block; font-size: .75rem; padding: 1px 7px; border-radius: 99px; background: var(--new-soft); color: var(--new); margin-left: 6px; }
+  .warn { color: var(--warn); font-size: .9rem; margin: 10px 0 0; }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0; }
+
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  button {
+    font: inherit; font-size: .95rem;
+    padding: 9px 16px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  .toast { font-size: .88rem; color: var(--accent); align-self: center; }
+
+  details summary { cursor: pointer; color: var(--muted); font-size: .92rem; }
+  details[open] summary { margin-bottom: 10px; }
+  .rules { font-size: .9rem; color: var(--muted); margin: 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏸 羽球社分帳</h1>
+    <p>填這週的總數，馬上算出每個人要付多少。</p>
+  </header>
+
+  <section class="card">
+    <h2>這週的總數</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="date">日期</label>
+        <input type="date" id="date">
+      </div>
+      <div></div>
+      <div class="field">
+        <label for="court">場地費總額</label>
+        <input type="number" id="court" min="0" step="1" inputmode="numeric" placeholder="0">
+        <span class="unit">元</span>
+      </div>
+      <div class="field">
+        <label for="ball">球費總額</label>
+        <input type="number" id="ball" min="0" step="1" inputmode="numeric" placeholder="0">
+        <span class="unit">元</span>
+      </div>
+      <div class="field">
+        <label for="regN">一般社員出席人數</label>
+        <input type="number" id="regN" min="0" step="1" inputmode="numeric" placeholder="0">
+        <span class="unit">人</span>
+      </div>
+      <div class="field">
+        <label for="newN">新人出席人數</label>
+        <input type="number" id="newN" min="0" step="1" inputmode="numeric" placeholder="0">
+        <span class="unit">人</span>
+      </div>
+    </div>
+
+    <details style="margin-top:16px">
+      <summary>填名字（選填，會列出每個人的金額）</summary>
+      <div class="grid">
+        <div>
+          <label for="regNames">一般社員名字</label>
+          <textarea id="regNames" placeholder="用空白、逗號或換行分開&#10;例如：小明 阿華 Amy"></textarea>
+          <div class="hint">有填名字時，人數會自動用名字數。</div>
+        </div>
+        <div>
+          <label for="newNames">新人名字</label>
+          <textarea id="newNames" placeholder="例如：小美"></textarea>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>每個人要付</h2>
+    <div id="result"><div class="empty">填上金額和人數就會顯示</div></div>
+    <div class="btns">
+      <button id="copy">複製成訊息（貼到 LINE）</button>
+      <button id="clear" class="ghost">清空這週</button>
+      <span class="toast" id="toast"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>設定</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="disc">新人每次折抵</label>
+        <input type="number" id="disc" min="0" step="1" inputmode="numeric" value="50">
+        <span class="unit">元</span>
+      </div>
+      <div class="field">
+        <label>收費金額取整</label>
+        <div style="padding-top:6px">
+          <label style="display:inline;color:var(--ink)"><input type="checkbox" id="roundUp" checked> 無條件進位到整數元</label>
+        </div>
+      </div>
+    </div>
+    <details style="margin-top:16px" open>
+      <summary>計算方式</summary>
+      <ol class="rules">
+        <li>總費用 = 場地費 + 球費，先由所有出席者（含新人）平均分，得到「原本每人」。</li>
+        <li>新人付「原本每人 − 折抵金額」（最少 0 元）。</li>
+        <li>新人少付的差額，由一般社員平均分攤，所以總額剛好收齊。</li>
+        <li>勾選進位時，每人金額進位到整數元，可能多收幾塊錢，會另外列出。</li>
+      </ol>
+    </details>
+  </section>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'badminton-split-v1';
+  var fields = ['date', 'court', 'ball', 'regN', 'newN', 'regNames', 'newNames', 'disc'];
+
+  function num(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
+  function names(text) {
+    return (text || '').split(/[\s,，、;；]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function fmt(n) { return Math.round(n).toLocaleString('zh-TW'); }
+  function fmt2(n) {
+    return (Math.round(n * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+  }
+
+  // 計算核心
+  function compute(court, ball, regN, newN, disc) {
+    var total = court + ball;
+    var people = regN + newN;
+    if (people === 0 || total === 0) return null;
+    var base = total / people;
+    var res = { total: total, base: base, regN: regN, newN: newN, warn: '' };
+    if (regN === 0) {
+      // 沒有一般社員可以分攤差額 → 新人照平均付
+      res.newPay = base;
+      res.regPay = 0;
+      res.warn = '這週只有新人出席，沒有一般社員可分攤折抵，新人照平均金額付。';
+    } else {
+      res.newPay = Math.max(0, base - disc);
+      res.regPay = (total - res.newPay * newN) / regN;
+    }
+    return res;
+  }
+
+  var lastText = '';
+
+  function render() {
+    var regList = names($('regNames').value);
+    var newList = names($('newNames').value);
+    var regN = regList.length ? regList.length : Math.floor(num($('regN').value));
+    var newN = newList.length ? newList.length : Math.floor(num($('newN').value));
+    if (regList.length) $('regN').value = regN;
+    if (newList.length) $('newN').value = newN;
+
+    var court = num($('court').value), ball = num($('ball').value), disc = num($('disc').value);
+    var r = compute(court, ball, regN, newN, disc);
+    var out = $('result');
+    if (!r) {
+      out.innerHTML = '<div class="empty">填上金額和人數就會顯示</div>';
+      lastText = '';
+      save();
+      return;
+    }
+    var roundUp = $('roundUp').checked;
+    var R = function (x) { return roundUp ? Math.ceil(x - 1e-9) : x; };
+    var regPay = R(r.regPay), newPay = R(r.newPay);
+    var collected = regPay * regN + newPay * newN;
+    var extra = collected - r.total;
+
+    var h = '<div class="result-head">';
+    if (regN > 0) {
+      h += '<div class="pay reg"><div class="who">一般社員（' + regN + ' 人）每人</div>' +
+           '<div class="amt">' + (roundUp ? fmt(regPay) : fmt2(regPay)) + ' 元</div>' +
+           (roundUp && Math.abs(regPay - r.regPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.regPay) + ' 元</div>' : '') + '</div>';
+    }
+    if (newN > 0) {
+      h += '<div class="pay nw"><div class="who">新人（' + newN + ' 人）每人</div>' +
+           '<div class="amt">' + (roundUp ? fmt(newPay) : fmt2(newPay)) + ' 元</div>' +
+           (roundUp && Math.abs(newPay - r.newPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.newPay) + ' 元</div>' : '') + '</div>';
+    }
+    h += '</div>';
+
+    h += '<table>';
+    h += '<tr><td>場地費</td><td class="num">' + fmt2(court) + ' 元</td></tr>';
+    h += '<tr><td>球費</td><td class="num">' + fmt2(ball) + ' 元</td></tr>';
+    h += '<tr><td>總費用</td><td class="num">' + fmt2(r.total) + ' 元</td></tr>';
+    h += '<tr><td>原本每人（' + (regN + newN) + ' 人平均）</td><td class="num">' + fmt2(r.base) + ' 元</td></tr>';
+    if (newN > 0 && regN > 0) {
+      var gap = (r.base - r.newPay) * newN;
+      h += '<tr><td>新人折抵合計（由一般社員分攤）</td><td class="num">' + fmt2(gap) + ' 元</td></tr>';
+    }
+    h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(collected) + ' 元</td></tr>';
+    h += '</table>';
+    if (extra > 0.004) h += '<p class="hint">因進位多收 ' + fmt2(extra) + ' 元，可放進社費。</p>';
+    if (r.warn) h += '<p class="warn">' + r.warn + '</p>';
+
+    // 名單
+    var amtStr = function (x) { return roundUp ? fmt(x) : fmt2(x); };
+    if (regList.length || newList.length) {
+      h += '<table style="margin-top:14px"><tr><th>名字</th><th class="num">要付</th></tr>';
+      regList.forEach(function (n) { h += '<tr><td>' + esc(n) + '</td><td class="num">' + amtStr(regPay) + ' 元</td></tr>'; });
+      newList.forEach(function (n) { h += '<tr><td>' + esc(n) + '<span class="tag">新人</span></td><td class="num">' + amtStr(newPay) + ' 元</td></tr>'; });
+      h += '</table>';
+    }
+    out.innerHTML = h;
+
+    // 訊息文字
+    var d = $('date').value;
+    var t = '🏸 羽球社 ' + (d ? d.replace(/-/g, '/') + ' ' : '') + '費用\n';
+    t += '場地費 ' + fmt2(court) + ' + 球費 ' + fmt2(ball) + ' = ' + fmt2(r.total) + ' 元\n';
+    if (regN > 0) t += '一般社員 ' + regN + ' 人：每人 ' + amtStr(regPay) + ' 元\n';
+    if (newN > 0) t += '新人 ' + newN + ' 人：每人 ' + amtStr(newPay) + ' 元\n';
+    if (regList.length || newList.length) {
+      t += '—\n';
+      regList.forEach(function (n) { t += n + ' ' + amtStr(regPay) + '\n'; });
+      newList.forEach(function (n) { t += n + '（新人） ' + amtStr(newPay) + '\n'; });
+    }
+    lastText = t.trim();
+    save();
+  }
+
+  function esc(s) {
+    return s.replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function save() {
+    try {
+      var o = { roundUp: $('roundUp').checked };
+      fields.forEach(function (f) { o[f] = $(f).value; });
+      localStorage.setItem(KEY, JSON.stringify(o));
+    } catch (e) {}
+  }
+  function load() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!o) return;
+      fields.forEach(function (f) { if (o[f] != null) $(f).value = o[f]; });
+      if (o.roundUp != null) $('roundUp').checked = o.roundUp;
+    } catch (e) {}
+  }
+
+  function toast(msg) {
+    $('toast').textContent = msg;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(function () { $('toast').textContent = ''; }, 2200);
+  }
+
+  $('copy').addEventListener('click', function () {
+    if (!lastText) { toast('還沒有可以複製的內容'); return; }
+    var done = function () { toast('已複製 ✓'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastText).then(done, fallback);
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = lastText; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('複製失敗，請手動選取'); }
+      document.body.removeChild(ta);
+    }
+  });
+
+  $('clear').addEventListener('click', function () {
+    ['court', 'ball', 'regN', 'newN', 'regNames', 'newNames'].forEach(function (f) { $(f).value = ''; });
+    $('date').value = today();
+    render();
+  });
+
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  load();
+  if (!$('date').value) $('date').value = today();
+  fields.concat(['roundUp']).forEach(function (f) {
+    $(f).addEventListener('input', render);
+    $(f).addEventListener('change', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>
