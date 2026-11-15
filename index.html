@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>羽球社分帳</title>
+<title>羽球社帳本</title>
 <style>
   :root {
     --bg: #f4f6f3;
@@ -103,18 +103,66 @@
   details summary { cursor: pointer; color: var(--muted); font-size: .92rem; }
   details[open] summary { margin-bottom: 10px; }
   .rules { font-size: .9rem; color: var(--muted); margin: 0; padding-left: 20px; }
+
+  button.danger { background: transparent; color: var(--warn); border-color: var(--warn); }
+  .userbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+  .userbar button { padding: 4px 12px; font-size: .85rem; }
+  .login { max-width: 380px; margin: 30px auto 0; }
+  .login .field { margin-bottom: 14px; }
+  .login button { width: 100%; padding: 11px; font-size: 1rem; }
+  [hidden] { display: none !important; }
+</style>
+<style>
+  .entry { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .entry.editing { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .entry-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; }
+  .entry-date { font-weight: 700; font-size: 1.05rem; }
+  .entry-meta { font-size: .8rem; color: var(--muted); }
+  .entry .pays { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { border-radius: 10px; padding: 6px 10px; font-size: .9rem; }
+  .chip.reg { background: var(--accent-soft); }
+  .chip.nw { background: var(--new-soft); }
+  .chip b { font-size: 1.1rem; }
+  .entry table { font-size: .9rem; }
+  .entry .btns { margin-top: 10px; }
+  .entry .btns button { padding: 5px 12px; font-size: .85rem; }
+  .editbar { background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: .9rem; margin-bottom: 14px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>🏸 羽球社分帳</h1>
-    <p>填這週的總數，存到雲端，大家打開都看得到同一份。</p>
-    <div class="status"><span class="dot" id="dot"></span><span id="statusText">連線中…</span></div>
+    <h1>🏸 羽球社帳本</h1>
+    <p>社員共用：填這週的總數，按「計算」就記進帳本，大家看到的是同一份。</p>
   </header>
 
-  <section class="card">
-    <h2>這週的總數 <small id="recState"></small></h2>
+  <section class="card login" id="loginBox" hidden>
+    <h2>社員登入</h2>
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">電子郵件</label>
+        <input type="text" id="email" autocomplete="username" inputmode="email" required>
+      </div>
+      <div class="field">
+        <label for="password">密碼</label>
+        <input type="password" id="password" autocomplete="current-password" required style="width:100%;font:inherit;font-size:1.05rem;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfb">
+      </div>
+      <button type="submit" id="loginBtn">登入</button>
+      <p class="msg bad" id="loginMsg" style="margin:10px 0 0"></p>
+      <p class="hint">沒有帳號？請找社團幹部幫你開。</p>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+  <div class="userbar">
+    <span class="status" style="margin:0"><span class="dot" id="dot"></span><span id="statusText">連線中…</span></span>
+    <span>·</span><span id="who"></span>
+    <button class="ghost" id="logout">登出</button>
+  </div>
+
+  <section class="card" id="formCard">
+    <h2>這週的總數</h2>
+    <div class="editbar" id="editBar" hidden></div>
     <div class="grid">
       <div class="field">
         <label for="date">日期</label>
@@ -167,24 +215,25 @@
     </div>
 
     <div class="savebar">
-      <button id="save">儲存到雲端</button>
-      <button id="newWeek" class="ghost">新的一週</button>
+      <button id="calc">計算</button>
+      <button id="cancelEdit" class="ghost" hidden>取消修改</button>
+      <button id="clearForm" class="ghost">清空</button>
       <span class="msg" id="saveMsg"></span>
     </div>
     <div class="notice" id="notice"></div>
   </section>
 
   <section class="card">
-    <h2>每個人要付</h2>
+    <h2>每個人要付 <small>邊填邊預覽，按「計算」才會記進帳本</small></h2>
     <div id="result"><div class="empty">填上金額和人數就會顯示</div></div>
     <div class="btns">
-      <button id="copy">複製成訊息（貼到 LINE）</button>
+      <button id="copy" class="ghost">複製成訊息（貼到 LINE）</button>
       <span class="msg" id="toast"></span>
     </div>
   </section>
 
   <section class="card">
-    <h2>歷次紀錄 <small>點一列可以打開</small></h2>
+    <h2>帳本 <small id="ledgerCount"></small></h2>
     <div id="history"><div class="empty">讀取中…</div></div>
   </section>
 
@@ -196,26 +245,29 @@
         <li>新人付「原本每人 − 折抵金額」（最少 0 元）。</li>
         <li>新人少付的差額，由一般社員平均分攤，所以總額剛好收齊。</li>
         <li>勾選進位時，每人金額進位到整數元，可能多收幾塊錢，會另外列出。</li>
-        <li>每個日期一筆紀錄；同一天再存一次會覆蓋那天的紀錄。</li>
+        <li>每按一次「計算」就新增一筆帳；登入的社員都可以看、修改、刪除任何一筆。</li>
       </ol>
     </details>
   </section>
+  </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
-  // ---- Supabase 設定（publishable key 本來就是公開用的）----
+  // ---- Supabase 設定：這裡只放公開金鑰（publishable key），資料由資料庫的登入規則保護 ----
   var SB_URL = 'https://yhrwfyxjxpvlboziuggv.supabase.co';
   var SB_KEY = 'sb_publishable_yqjqZ78k31ZBz2hg-28AwA_eyI7HhhU';
-  var API = SB_URL + '/rest/v1/weeks';
-  var HEADERS = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+  var sb = window.supabase.createClient(SB_URL, SB_KEY);
+  var COLS = 'id,play_date,court,ball,reg_count,new_count,reg_names,new_names,discount,round_up,' +
+             'total,reg_pay,new_pay,collected,created_by_email,created_at,updated_by_email,updated_at';
 
   var $ = function (id) { return document.getElementById(id); };
   var formFields = ['date', 'court', 'ball', 'regN', 'newN', 'regNames', 'newNames', 'disc', 'roundUp'];
 
-  var weeks = [];          // 雲端上所有紀錄（新到舊）
-  var loaded = null;       // 目前畫面對應的雲端紀錄（沒有則 null）
-  var dirty = false;
+  var user = null;         // 目前登入的社員
+  var entries = [];        // 帳本（新到舊）
+  var editing = null;      // 正在修改的那筆（沒有則 null）
   var lastText = '';
 
   function num(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
@@ -225,7 +277,7 @@
   function fmt(n) { return Math.round(n).toLocaleString('zh-TW'); }
   function fmt2(n) { return (Math.round(n * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
@@ -233,8 +285,10 @@
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  function when(ts) { return ts ? new Date(ts).toLocaleString('zh-TW', { hour12: false, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; }
+  function slash(d) { return String(d || '').replace(/-/g, '/'); }
 
-  // ---- 計算核心 ----
+  // ---- 計算核心（規則與原本相同）----
   function compute(court, ball, regN, newN, disc) {
     var total = court + ball;
     var people = regN + newN;
@@ -250,19 +304,11 @@
     }
     return res;
   }
-  function payFor(w) {
-    var regList = names(w.reg_names), newList = names(w.new_names);
-    var regN = regList.length || w.reg_count, newN = newList.length || w.new_count;
-    var r = compute(+w.court, +w.ball, regN, newN, +w.discount);
-    if (!r) return null;
-    var R = function (x) { return w.round_up ? Math.ceil(x - 1e-9) : x; };
-    return { total: r.total, regN: regN, newN: newN, regPay: R(r.regPay), newPay: R(r.newPay), round: w.round_up };
-  }
 
-  // ---- 畫面 <-> 資料 ----
+  // 把表單內容算好，回傳要記進帳本的一筆（算不出來回傳 null）
   function readForm() {
     var regList = names($('regNames').value), newList = names($('newNames').value);
-    return {
+    var f = {
       play_date: $('date').value,
       court: num($('court').value),
       ball: num($('ball').value),
@@ -273,254 +319,304 @@
       discount: num($('disc').value),
       round_up: $('roundUp').checked
     };
-  }
-  function fillForm(w, date) {
-    if (w) {
-      $('date').value = w.play_date;
-      $('court').value = +w.court || '';
-      $('ball').value = +w.ball || '';
-      $('regN').value = w.reg_count || '';
-      $('newN').value = w.new_count || '';
-      $('regNames').value = w.reg_names || '';
-      $('newNames').value = w.new_names || '';
-      $('disc').value = +w.discount;
-      $('roundUp').checked = !!w.round_up;
-      if (w.reg_names || w.new_names) $('namesBox').open = true;
-    } else {
-      // 新的一天：沿用最近一次的折抵與進位設定
-      var last = weeks[0];
-      $('date').value = date;
-      ['court', 'ball', 'regN', 'newN', 'regNames', 'newNames'].forEach(function (f) { $(f).value = ''; });
-      $('disc').value = last ? +last.discount : 50;
-      $('roundUp').checked = last ? !!last.round_up : true;
+    var r = compute(f.court, f.ball, f.reg_count, f.new_count, f.discount);
+    if (r) {
+      var R = function (x) { return f.round_up ? Math.ceil(x - 1e-9) : Math.round(x * 100) / 100; };
+      f.total = r.total;
+      f.reg_pay = f.reg_count ? R(r.regPay) : 0;
+      f.new_pay = f.new_count ? R(r.newPay) : 0;
+      f.collected = f.reg_pay * f.reg_count + f.new_pay * f.new_count;
     }
-    loaded = w || null;
-    setDirty(false);
-    render();
-  }
-  function setDirty(v) {
-    dirty = v;
-    var m = $('saveMsg');
-    if (v) { m.textContent = '● 有變更還沒存'; m.className = 'msg dirty'; }
-    else if (loaded) { m.textContent = '已存在雲端 · ' + new Date(loaded.updated_at).toLocaleString('zh-TW', { hour12: false }); m.className = 'msg ok'; }
-    else { m.textContent = ''; m.className = 'msg'; }
-    $('recState').textContent = loaded ? '（雲端紀錄）' : '（新紀錄，還沒存）';
-  }
-  function findWeek(date) {
-    for (var i = 0; i < weeks.length; i++) if (weeks[i].play_date === date) return weeks[i];
-    return null;
+    return { row: f, r: r, regList: regList, newList: newList };
   }
 
-  // ---- 雲端 ----
-  function setStatus(state, text) {
-    $('dot').className = 'dot' + (state ? ' ' + state : '');
-    $('statusText').textContent = text;
-  }
-  function fetchWeeks() {
-    return fetch(API + '?select=*&order=play_date.desc', { headers: HEADERS }).then(function (r) {
-      if (!r.ok) throw new Error('讀取失敗（' + r.status + '）');
-      return r.json();
-    }).then(function (rows) {
-      weeks = rows;
-      setStatus('ok', '已連線雲端 · 共 ' + rows.length + ' 筆紀錄');
-      renderHistory();
-      return rows;
-    });
-  }
-  function save() {
-    var data = readForm();
-    if (!data.play_date) { showMsg('請先選日期', 'bad'); return; }
-    $('save').disabled = true;
-    showMsg('儲存中…', '');
-    hideNotice();
-    // 先確認這期間沒有別人改過同一天
-    fetch(API + '?select=updated_at&play_date=eq.' + data.play_date, { headers: HEADERS })
-      .then(function (r) { if (!r.ok) throw new Error('讀取失敗（' + r.status + '）'); return r.json(); })
-      .then(function (rows) {
-        var remote = rows[0] ? rows[0].updated_at : null;
-        var mine = loaded && loaded.play_date === data.play_date ? loaded.updated_at : null;
-        if (remote && remote !== mine && !save.force) {
-          save.force = true;
-          throw { conflict: true };
-        }
-        save.force = false;
-        return fetch(API + '?on_conflict=play_date', {
-          method: 'POST',
-          headers: Object.assign({ Prefer: 'resolution=merge-duplicates,return=representation' }, HEADERS),
-          body: JSON.stringify(data)
-        });
-      })
-      .then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error('儲存失敗（' + r.status + '）' + t); });
-        return r.json();
-      })
-      .then(function (rows) {
-        loaded = rows[0];
-        return fetchWeeks();
-      })
-      .then(function () {
-        setDirty(false);
-        showMsg('已存到雲端 ✓', 'ok');
-        setTimeout(function () { if (!dirty) setDirty(false); }, 2500);
-      })
-      .catch(function (e) {
-        if (e && e.conflict) {
-          showNotice('別人剛剛也存過 ' + data.play_date + ' 的紀錄。按「重新讀取」看最新版本，或再按一次「儲存到雲端」用你的版本覆蓋。', true);
-          showMsg('', '');
-        } else {
-          save.force = false;
-          showMsg(e.message || '儲存失敗，請檢查網路', 'bad');
-        }
-      })
-      .then(function () { $('save').disabled = false; });
-  }
-  function showMsg(t, cls) { var m = $('saveMsg'); m.textContent = t; m.className = 'msg' + (cls ? ' ' + cls : ''); }
-  function showNotice(t, withReload) {
-    var n = $('notice');
-    n.innerHTML = esc(t) + (withReload ? ' <button class="ghost" id="reloadDay" style="margin-left:6px;padding:4px 10px;font-size:.85rem">重新讀取</button>' : '');
-    n.style.display = 'block';
-    if (withReload) $('reloadDay').onclick = function () {
-      hideNotice(); save.force = false;
-      fetchWeeks().then(function () { fillForm(findWeek($('date').value), $('date').value); });
-    };
-  }
-  function hideNotice() { $('notice').style.display = 'none'; }
-
-  // ---- 畫面 ----
+  // ---- 預覽 ----
   function render() {
-    var data = readForm();
-    var regList = names(data.reg_names), newList = names(data.new_names);
-    if (regList.length) $('regN').value = regList.length;
-    if (newList.length) $('newN').value = newList.length;
-    var regN = data.reg_count, newN = data.new_count;
-    var court = data.court, ball = data.ball, disc = data.discount;
-    var r = compute(court, ball, regN, newN, disc);
+    var x = readForm(), f = x.row, r = x.r;
+    if (x.regList.length) $('regN').value = x.regList.length;
+    if (x.newList.length) $('newN').value = x.newList.length;
     var out = $('result');
     if (!r) { out.innerHTML = '<div class="empty">填上金額和人數就會顯示</div>'; lastText = ''; return; }
-
-    var roundUp = data.round_up;
-    var R = function (x) { return roundUp ? Math.ceil(x - 1e-9) : x; };
-    var regPay = R(r.regPay), newPay = R(r.newPay);
-    var collected = regPay * regN + newPay * newN;
-    var extra = collected - r.total;
-    var amtStr = function (x) { return roundUp ? fmt(x) : fmt2(x); };
-
+    var amt = function (v) { return f.round_up ? fmt(v) : fmt2(v); };
+    var regN = f.reg_count, newN = f.new_count;
     var h = '<div class="result-head">';
-    if (regN > 0) {
-      h += '<div class="pay reg"><div class="who">一般社員（' + regN + ' 人）每人</div><div class="amt">' + amtStr(regPay) + ' 元</div>' +
-           (roundUp && Math.abs(regPay - r.regPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.regPay) + ' 元</div>' : '') + '</div>';
-    }
-    if (newN > 0) {
-      h += '<div class="pay nw"><div class="who">新人（' + newN + ' 人）每人</div><div class="amt">' + amtStr(newPay) + ' 元</div>' +
-           (roundUp && Math.abs(newPay - r.newPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.newPay) + ' 元</div>' : '') + '</div>';
-    }
+    if (regN > 0) h += '<div class="pay reg"><div class="who">一般社員（' + regN + ' 人）每人</div><div class="amt">' + amt(f.reg_pay) + ' 元</div>' +
+      (f.round_up && Math.abs(f.reg_pay - r.regPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.regPay) + ' 元</div>' : '') + '</div>';
+    if (newN > 0) h += '<div class="pay nw"><div class="who">新人（' + newN + ' 人）每人</div><div class="amt">' + amt(f.new_pay) + ' 元</div>' +
+      (f.round_up && Math.abs(f.new_pay - r.newPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.newPay) + ' 元</div>' : '') + '</div>';
     h += '</div><table>';
-    h += '<tr><td>場地費</td><td class="num">' + fmt2(court) + ' 元</td></tr>';
-    h += '<tr><td>球費</td><td class="num">' + fmt2(ball) + ' 元</td></tr>';
+    h += '<tr><td>場地費</td><td class="num">' + fmt2(f.court) + ' 元</td></tr>';
+    h += '<tr><td>球費</td><td class="num">' + fmt2(f.ball) + ' 元</td></tr>';
     h += '<tr><td>總費用</td><td class="num">' + fmt2(r.total) + ' 元</td></tr>';
     h += '<tr><td>原本每人（' + (regN + newN) + ' 人平均）</td><td class="num">' + fmt2(r.base) + ' 元</td></tr>';
     if (newN > 0 && regN > 0) h += '<tr><td>新人折抵合計（由一般社員分攤）</td><td class="num">' + fmt2((r.base - r.newPay) * newN) + ' 元</td></tr>';
-    h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(collected) + ' 元</td></tr></table>';
-    if (extra > 0.004) h += '<p class="hint">因進位多收 ' + fmt2(extra) + ' 元，可放進社費。</p>';
+    h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(f.collected) + ' 元</td></tr></table>';
+    if (f.collected - r.total > 0.004) h += '<p class="hint">因進位多收 ' + fmt2(f.collected - r.total) + ' 元，可放進社費。</p>';
     if (r.warn) h += '<p class="warn">' + r.warn + '</p>';
-    if (regList.length || newList.length) {
+    if (x.regList.length || x.newList.length) {
       h += '<table style="margin-top:14px"><tr><th>名字</th><th class="num">要付</th></tr>';
-      regList.forEach(function (n) { h += '<tr><td>' + esc(n) + '</td><td class="num">' + amtStr(regPay) + ' 元</td></tr>'; });
-      newList.forEach(function (n) { h += '<tr><td>' + esc(n) + '<span class="tag">新人</span></td><td class="num">' + amtStr(newPay) + ' 元</td></tr>'; });
+      x.regList.forEach(function (n) { h += '<tr><td>' + esc(n) + '</td><td class="num">' + amt(f.reg_pay) + ' 元</td></tr>'; });
+      x.newList.forEach(function (n) { h += '<tr><td>' + esc(n) + '<span class="tag">新人</span></td><td class="num">' + amt(f.new_pay) + ' 元</td></tr>'; });
       h += '</table>';
     }
     out.innerHTML = h;
+    lastText = messageFor(f);
+  }
 
-    var d = data.play_date;
-    var t = '🏸 羽球社 ' + (d ? d.replace(/-/g, '/') + ' ' : '') + '費用\n';
-    t += '場地費 ' + fmt2(court) + ' + 球費 ' + fmt2(ball) + ' = ' + fmt2(r.total) + ' 元\n';
-    if (regN > 0) t += '一般社員 ' + regN + ' 人：每人 ' + amtStr(regPay) + ' 元\n';
-    if (newN > 0) t += '新人 ' + newN + ' 人：每人 ' + amtStr(newPay) + ' 元\n';
+  function messageFor(e) {
+    var amt = function (v) { return e.round_up ? fmt(+v) : fmt2(+v); };
+    var regList = names(e.reg_names), newList = names(e.new_names);
+    var t = '🏸 羽球社 ' + (e.play_date ? slash(e.play_date) + ' ' : '') + '費用\n';
+    t += '場地費 ' + fmt2(+e.court) + ' + 球費 ' + fmt2(+e.ball) + ' = ' + fmt2(+e.total) + ' 元\n';
+    if (e.reg_count > 0) t += '一般社員 ' + e.reg_count + ' 人：每人 ' + amt(e.reg_pay) + ' 元\n';
+    if (e.new_count > 0) t += '新人 ' + e.new_count + ' 人：每人 ' + amt(e.new_pay) + ' 元\n';
     if (regList.length || newList.length) {
       t += '—\n';
-      regList.forEach(function (n) { t += n + ' ' + amtStr(regPay) + '\n'; });
-      newList.forEach(function (n) { t += n + '（新人） ' + amtStr(newPay) + '\n'; });
+      regList.forEach(function (n) { t += n + ' ' + amt(e.reg_pay) + '\n'; });
+      newList.forEach(function (n) { t += n + '（新人） ' + amt(e.new_pay) + '\n'; });
     }
-    lastText = t.trim();
+    return t.trim();
   }
 
+  // ---- 帳本列表（每筆直接展開）----
   function renderHistory() {
     var box = $('history');
-    if (!weeks.length) { box.innerHTML = '<div class="empty">還沒有紀錄，填好這週按「儲存到雲端」就會出現在這裡</div>'; return; }
-    var cur = $('date').value;
-    var h = '<table><tr><th>日期</th><th class="num">總費用</th><th class="num">人數</th><th class="num">社員／新人每人</th></tr>';
-    weeks.forEach(function (w) {
-      var p = payFor(w);
-      var s = function (x) { return p && p.round ? fmt(x) : fmt2(x); };
-      h += '<tr class="row' + (w.play_date === cur ? ' current' : '') + '" data-date="' + esc(w.play_date) + '">' +
-        '<td>' + esc(w.play_date.replace(/-/g, '/')) + '</td>' +
-        '<td class="num">' + (p ? fmt2(p.total) : '—') + '</td>' +
-        '<td class="num">' + (p ? (p.regN + p.newN) : '—') + '</td>' +
-        '<td class="num">' + (p ? (p.regN ? s(p.regPay) : '—') + ' ／ ' + (p.newN ? s(p.newPay) : '—') : '—') + '</td></tr>';
+    $('ledgerCount').textContent = entries.length ? '共 ' + entries.length + ' 筆' : '';
+    if (!entries.length) { box.innerHTML = '<div class="empty">帳本還是空的，填好這週按「計算」就會記在這裡</div>'; return; }
+    var h = '';
+    entries.forEach(function (e) {
+      var amt = function (v) { return e.round_up ? fmt(+v) : fmt2(+v); };
+      var regList = names(e.reg_names), newList = names(e.new_names);
+      var meta = esc(e.created_by_email || '（不明）') + ' 記於 ' + when(e.created_at);
+      if (e.updated_by_email) meta += '・' + esc(e.updated_by_email) + ' 修改於 ' + when(e.updated_at);
+      h += '<div class="entry' + (editing && editing.id === e.id ? ' editing' : '') + '">';
+      h += '<div class="entry-head"><span class="entry-date">' + esc(slash(e.play_date)) + '</span><span class="entry-meta">' + meta + '</span></div>';
+      h += '<div class="pays">';
+      if (e.reg_count > 0) h += '<span class="chip reg">一般社員 ' + e.reg_count + ' 人・每人 <b>' + amt(e.reg_pay) + '</b> 元</span>';
+      if (e.new_count > 0) h += '<span class="chip nw">新人 ' + e.new_count + ' 人・每人 <b>' + amt(e.new_pay) + '</b> 元</span>';
+      h += '</div><table>';
+      h += '<tr><td>場地費</td><td class="num">' + fmt2(+e.court) + ' 元</td></tr>';
+      h += '<tr><td>球費</td><td class="num">' + fmt2(+e.ball) + ' 元</td></tr>';
+      h += '<tr><td>總費用</td><td class="num">' + fmt2(+e.total) + ' 元</td></tr>';
+      if (e.new_count > 0) h += '<tr><td>新人折抵</td><td class="num">每次 ' + fmt2(+e.discount) + ' 元</td></tr>';
+      h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(+e.collected) + ' 元</td></tr>';
+      h += '</table>';
+      if (regList.length || newList.length) {
+        h += '<table style="margin-top:8px"><tr><th>名字</th><th class="num">要付</th></tr>';
+        regList.forEach(function (n) { h += '<tr><td>' + esc(n) + '</td><td class="num">' + amt(e.reg_pay) + ' 元</td></tr>'; });
+        newList.forEach(function (n) { h += '<tr><td>' + esc(n) + '<span class="tag">新人</span></td><td class="num">' + amt(e.new_pay) + ' 元</td></tr>'; });
+        h += '</table>';
+      }
+      h += '<div class="btns"><button class="ghost" data-act="edit" data-id="' + e.id + '">修改</button>' +
+           '<button class="ghost" data-act="copy" data-id="' + e.id + '">複製訊息</button>' +
+           '<button class="danger" data-act="del" data-id="' + e.id + '">刪除</button>' +
+           '<span class="msg" id="emsg-' + e.id + '"></span></div>';
+      h += '</div>';
     });
-    box.innerHTML = h + '</table>';
-    Array.prototype.forEach.call(box.querySelectorAll('tr.row'), function (tr) {
-      tr.onclick = function () { openDate(tr.getAttribute('data-date')); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    });
+    box.innerHTML = h;
+  }
+  $('history').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-act]');
+    if (!b) return;
+    var e = findEntry(+b.getAttribute('data-id'));
+    if (!e) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'edit') startEdit(e);
+    else if (act === 'del') del(e);
+    else if (act === 'copy') copyText(messageFor(e), function (m) { var s = $('emsg-' + e.id); if (s) { s.textContent = m; setTimeout(function () { s.textContent = ''; }, 2200); } });
+  });
+  function findEntry(id) { for (var i = 0; i < entries.length; i++) if (entries[i].id === id) return entries[i]; return null; }
+
+  // ---- 雲端（ledger 表；需要登入才讀寫得到）----
+  function setStatus(state, text) { $('dot').className = 'dot' + (state ? ' ' + state : ''); $('statusText').textContent = text; }
+  function errText(e) {
+    if (!e) return '發生錯誤';
+    if (e.code === 'PGRST301' || /JWT|token/i.test(e.message || '')) return '登入已過期，請重新登入';
+    return e.message || '發生錯誤';
+  }
+  function fetchEntries() {
+    return sb.from('ledger').select(COLS)
+      .order('play_date', { ascending: false }).order('created_at', { ascending: false })
+      .then(function (res) {
+        if (res.error) throw new Error('讀取失敗：' + errText(res.error));
+        entries = res.data;
+        setStatus('ok', '已連線雲端');
+        renderHistory();
+        return entries;
+      });
+  }
+  function showMsg(t, cls) { var m = $('saveMsg'); m.textContent = t; m.className = 'msg' + (cls ? ' ' + cls : ''); }
+  function showNotice(html) { var n = $('notice'); n.innerHTML = html; n.style.display = 'block'; }
+  function hideNotice() { $('notice').style.display = 'none'; }
+
+  // 按「計算」：新增一筆；修改模式時則更新那一筆
+  function calc(force) {
+    hideNotice();
+    var x = readForm(), f = x.row;
+    if (!f.play_date) { showMsg('請先選日期', 'bad'); return; }
+    if (!x.r) { showMsg('請先填金額和人數', 'bad'); return; }
+    $('calc').disabled = true;
+    showMsg(editing ? '更新中…' : '記帳中…', '');
+    var req;
+    if (editing) {
+      f.updated_at = new Date().toISOString();
+      f.updated_by_email = user.email;
+      var q = sb.from('ledger').update(f).eq('id', editing.id);
+      if (!force) q = q.eq('updated_at', editing.updated_at);   // 別人改過就不覆蓋
+      req = q.select(COLS);
+    } else {
+      f.created_by = user.id;
+      f.created_by_email = user.email;
+      req = sb.from('ledger').insert(f).select(COLS);
+    }
+    var wasEditing = !!editing;
+    req.then(function (res) {
+      if (res.error) throw new Error((wasEditing ? '更新' : '記帳') + '失敗：' + errText(res.error));
+      if (!res.data.length) {
+        if (force) throw { gone: true };
+        throw { conflict: true };
+      }
+      if (wasEditing) stopEdit(true);
+      return fetchEntries();
+    }).then(function () {
+      showMsg(wasEditing ? '已更新 ✓' : '已記進帳本 ✓', 'ok');
+    }).catch(function (e) {
+      showMsg('', '');
+      if (e && e.conflict) {
+        showNotice('別人剛剛改過或刪掉了這筆。<button class="ghost" id="nReload" style="margin-left:6px;padding:4px 10px;font-size:.85rem">看最新版本</button>' +
+                   '<button class="ghost" id="nForce" style="margin-left:6px;padding:4px 10px;font-size:.85rem">用我的版本覆蓋</button>');
+        $('nReload').onclick = function () {
+          hideNotice();
+          var id = editing && editing.id;
+          fetchEntries().then(function () { var e2 = findEntry(id); if (e2) startEdit(e2); else { stopEdit(false); showMsg('這筆已經被刪掉了', 'bad'); } });
+        };
+        $('nForce').onclick = function () { hideNotice(); calc(true); };
+      } else if (e && e.gone) {
+        stopEdit(false);
+        fetchEntries().catch(function () {});
+        showMsg('這筆已經被別人刪掉了。表單內容還在，按「計算」可以重新記一筆。', 'bad');
+      } else {
+        showMsg((e && e.message) || '失敗，請檢查網路', 'bad');
+      }
+    }).then(function () { $('calc').disabled = false; });
   }
 
-  function openDate(date) {
-    if (dirty && !window.confirm('目前的變更還沒存，確定要切換嗎？')) { return false; }
-    hideNotice(); save.force = false;
-    fillForm(findWeek(date), date);
+  function startEdit(e) {
+    editing = e;
+    $('date').value = e.play_date;
+    $('court').value = +e.court || '';
+    $('ball').value = +e.ball || '';
+    $('regN').value = e.reg_count || '';
+    $('newN').value = e.new_count || '';
+    $('regNames').value = e.reg_names || '';
+    $('newNames').value = e.new_names || '';
+    $('disc').value = +e.discount;
+    $('roundUp').checked = !!e.round_up;
+    if (e.reg_names || e.new_names) $('namesBox').open = true;
+    $('editBar').innerHTML = '正在修改 <b>' + esc(slash(e.play_date)) + '</b> 的帳（' + esc(e.created_by_email || '') + ' 記的）。改好按「更新這筆」。';
+    $('editBar').hidden = false;
+    $('calc').textContent = '更新這筆';
+    $('cancelEdit').hidden = false;
+    hideNotice(); showMsg('', '');
+    render(); renderHistory();
+    $('formCard').scrollIntoView({ behavior: 'smooth' });
+  }
+  function stopEdit(keepForm) {
+    editing = null;
+    $('editBar').hidden = true;
+    $('calc').textContent = '計算';
+    $('cancelEdit').hidden = true;
+    if (!keepForm) {} // 表單內容保留，方便重新記一筆
     renderHistory();
-    return true;
+  }
+  function clearForm() {
+    var last = entries[0];
+    $('date').value = today();
+    ['court', 'ball', 'regN', 'newN', 'regNames', 'newNames'].forEach(function (f) { $(f).value = ''; });
+    $('disc').value = last ? +last.discount : 50;
+    $('roundUp').checked = last ? !!last.round_up : true;
+    render();
+  }
+
+  function del(e) {
+    if (!window.confirm('確定要刪除 ' + slash(e.play_date) + '（' + (e.created_by_email || '') + ' 記的）這筆帳嗎？刪掉就找不回來了。')) return;
+    var s = $('emsg-' + e.id);
+    if (s) { s.textContent = '刪除中…'; s.className = 'msg'; }
+    sb.from('ledger').delete().eq('id', e.id).select('id').then(function (res) {
+      if (res.error) throw new Error('刪除失敗：' + errText(res.error));
+      if (editing && editing.id === e.id) { stopEdit(true); showMsg('你正在修改的那筆已刪除', ''); }
+      return fetchEntries();
+    }).catch(function (err) { if (s) { s.textContent = err.message; s.className = 'msg bad'; } });
+  }
+
+  function copyText(text, toast) {
+    if (!text) { toast('還沒有可以複製的內容'); return; }
+    var done = function () { toast('已複製 ✓'); };
+    var fallback = function () {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('複製失敗，請手動選取'); }
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
   }
 
   // ---- 事件 ----
   formFields.forEach(function (f) {
-    if (f === 'date') return;
-    $(f).addEventListener('input', function () { setDirty(true); render(); });
-    $(f).addEventListener('change', function () { setDirty(true); render(); });
+    $(f).addEventListener('input', render);
+    $(f).addEventListener('change', render);
   });
-  var prevDate = '';
-  $('date').addEventListener('focus', function () { prevDate = $('date').value; });
-  $('date').addEventListener('change', function () {
-    var d = $('date').value;
-    if (!d) return;
-    var w = findWeek(d);
-    if (w) {
-      if (!openDate(d)) $('date').value = prevDate;
-    } else {
-      // 換到沒有紀錄的日期：保留目前填的內容，視為新紀錄
-      loaded = null; setDirty(true); render(); renderHistory();
-    }
-    prevDate = $('date').value;
-  });
-  $('save').addEventListener('click', save);
-  $('newWeek').addEventListener('click', function () { openDate(today()); });
-
+  $('calc').addEventListener('click', function () { calc(false); });
+  $('cancelEdit').addEventListener('click', function () { stopEdit(true); hideNotice(); clearForm(); showMsg('', ''); });
+  $('clearForm').addEventListener('click', function () { if (editing) stopEdit(true); hideNotice(); clearForm(); showMsg('', ''); });
   $('copy').addEventListener('click', function () {
-    var toast = function (m) { $('toast').textContent = m; clearTimeout(toast.t); toast.t = setTimeout(function () { $('toast').textContent = ''; }, 2200); };
-    if (!lastText) { toast('還沒有可以複製的內容'); return; }
-    var done = function () { toast('已複製 ✓'); };
-    var fallback = function () {
-      var ta = document.createElement('textarea');
-      ta.value = lastText; document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (e) { toast('複製失敗，請手動選取'); }
-      document.body.removeChild(ta);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastText).then(done, fallback);
-    else fallback();
+    copyText(lastText, function (m) { $('toast').textContent = m; clearTimeout(copyText.t); copyText.t = setTimeout(function () { $('toast').textContent = ''; }, 2200); });
   });
 
-  window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-
-  // ---- 啟動：打開最近一次紀錄；沒有就開今天 ----
-  $('date').value = today();
-  fetchWeeks().then(function () {
-    var w = findWeek(today()) || weeks[0] || null;
-    fillForm(w, today());
-    renderHistory();
-  }).catch(function (e) {
-    setStatus('bad', '連不上雲端：' + e.message + '（可以先算，但無法儲存）');
-    $('history').innerHTML = '<div class="empty">連不上雲端</div>';
-    fillForm(null, today());
+  // ---- 登入 ----
+  var started = false;
+  function showLogin() {
+    started = false; user = null; entries = []; editing = null;
+    $('app').hidden = true;
+    $('loginBox').hidden = false;
+  }
+  function startApp(session) {
+    user = session.user;
+    $('loginBox').hidden = true;
+    $('app').hidden = false;
+    $('who').textContent = '已登入：' + (user.email || '');
+    if (started) return;
+    started = true;
+    setStatus('', '讀取中…');
+    fetchEntries().then(function () { clearForm(); })
+      .catch(function (e) {
+        setStatus('bad', e.message);
+        $('history').innerHTML = '<div class="empty">讀不到帳本</div>';
+        clearForm();
+      });
+  }
+  $('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('loginBtn').disabled = true;
+    $('loginMsg').textContent = '';
+    sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value })
+      .then(function (res) {
+        if (res.error) {
+          $('loginMsg').textContent = /invalid/i.test(res.error.message) ? '電子郵件或密碼不對' : '登入失敗：' + res.error.message;
+          return;
+        }
+        $('password').value = '';
+      })
+      .catch(function () { $('loginMsg').textContent = '登入失敗，請檢查網路'; })
+      .then(function () { $('loginBtn').disabled = false; });
+  });
+  $('logout').addEventListener('click', function () { sb.auth.signOut(); });
+  sb.auth.onAuthStateChange(function (event, session) {
+    setTimeout(function () {
+      if (session) startApp(session);
+      else showLogin();
+    }, 0);
   });
 })();
 </script>
