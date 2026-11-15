@@ -16,6 +16,7 @@
     --new: #c06a1b;
     --new-soft: #fbeedf;
     --warn: #a33b2b;
+    --warn-soft: #f8e6e3;
   }
   * { box-sizing: border-box; }
   body {
@@ -27,7 +28,11 @@
   }
   .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 60px; }
   header h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: .02em; }
-  header p { margin: 0 0 22px; color: var(--muted); font-size: .95rem; }
+  header p { margin: 0 0 10px; color: var(--muted); font-size: .95rem; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #b8c0bb; }
+  .dot.ok { background: var(--accent); }
+  .dot.bad { background: var(--warn); }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
@@ -36,6 +41,7 @@
     margin-bottom: 16px;
   }
   .card h2 { margin: 0 0 14px; font-size: 1.05rem; }
+  .card h2 small { font-weight: normal; color: var(--muted); font-size: .82rem; margin-left: 8px; }
   .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 16px; }
   @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
   label { display: block; font-size: .88rem; color: var(--muted); margin-bottom: 5px; }
@@ -56,11 +62,7 @@
   textarea { min-height: 72px; resize: vertical; font-size: .98rem; }
 
   .result-head { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  .pay {
-    flex: 1 1 200px;
-    border-radius: 12px;
-    padding: 14px 16px;
-  }
+  .pay { flex: 1 1 200px; border-radius: 12px; padding: 14px 16px; }
   .pay.reg { background: var(--accent-soft); }
   .pay.nw { background: var(--new-soft); }
   .pay .who { font-size: .9rem; color: var(--muted); }
@@ -72,11 +74,13 @@
   table { width: 100%; border-collapse: collapse; font-size: .95rem; }
   td, th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th { font-weight: normal; color: var(--muted); font-size: .85rem; }
   tr.total td { font-weight: 700; border-bottom: none; }
   .tag { display: inline-block; font-size: .75rem; padding: 1px 7px; border-radius: 99px; background: var(--new-soft); color: var(--new); margin-left: 6px; }
   .warn { color: var(--warn); font-size: .9rem; margin: 10px 0 0; }
   .empty { color: var(--muted); text-align: center; padding: 18px 0; }
 
+  .savebar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
   .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   button {
     font: inherit; font-size: .95rem;
@@ -84,8 +88,17 @@
     border: 1px solid var(--accent); background: var(--accent); color: #fff;
   }
   button.ghost { background: transparent; color: var(--accent); }
-  button:active { transform: translateY(1px); }
-  .toast { font-size: .88rem; color: var(--accent); align-self: center; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  .msg { font-size: .88rem; color: var(--muted); }
+  .msg.ok { color: var(--accent); }
+  .msg.bad { color: var(--warn); }
+  .msg.dirty { color: var(--new); }
+  .notice { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 12px; display: none; }
+
+  #history tr.row { cursor: pointer; }
+  #history tr.row:hover td { background: #f7faf8; }
+  #history tr.current td { background: var(--accent-soft); }
 
   details summary { cursor: pointer; color: var(--muted); font-size: .92rem; }
   details[open] summary { margin-bottom: 10px; }
@@ -96,17 +109,22 @@
 <div class="wrap">
   <header>
     <h1>🏸 羽球社分帳</h1>
-    <p>填這週的總數，馬上算出每個人要付多少。</p>
+    <p>填這週的總數，存到雲端，大家打開都看得到同一份。</p>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">連線中…</span></div>
   </header>
 
   <section class="card">
-    <h2>這週的總數</h2>
+    <h2>這週的總數 <small id="recState"></small></h2>
     <div class="grid">
       <div class="field">
         <label for="date">日期</label>
         <input type="date" id="date">
       </div>
-      <div></div>
+      <div class="field">
+        <label for="disc">新人每次折抵</label>
+        <input type="number" id="disc" min="0" step="1" inputmode="numeric" value="50">
+        <span class="unit">元</span>
+      </div>
       <div class="field">
         <label for="court">場地費總額</label>
         <input type="number" id="court" min="0" step="1" inputmode="numeric" placeholder="0">
@@ -129,7 +147,7 @@
       </div>
     </div>
 
-    <details style="margin-top:16px">
+    <details style="margin-top:16px" id="namesBox">
       <summary>填名字（選填，會列出每個人的金額）</summary>
       <div class="grid">
         <div>
@@ -143,6 +161,17 @@
         </div>
       </div>
     </details>
+
+    <div style="margin-top:12px">
+      <label style="display:inline;color:var(--ink)"><input type="checkbox" id="roundUp" checked> 收費金額無條件進位到整數元</label>
+    </div>
+
+    <div class="savebar">
+      <button id="save">儲存到雲端</button>
+      <button id="newWeek" class="ghost">新的一週</button>
+      <span class="msg" id="saveMsg"></span>
+    </div>
+    <div class="notice" id="notice"></div>
   </section>
 
   <section class="card">
@@ -150,33 +179,24 @@
     <div id="result"><div class="empty">填上金額和人數就會顯示</div></div>
     <div class="btns">
       <button id="copy">複製成訊息（貼到 LINE）</button>
-      <button id="clear" class="ghost">清空這週</button>
-      <span class="toast" id="toast"></span>
+      <span class="msg" id="toast"></span>
     </div>
   </section>
 
   <section class="card">
-    <h2>設定</h2>
-    <div class="grid">
-      <div class="field">
-        <label for="disc">新人每次折抵</label>
-        <input type="number" id="disc" min="0" step="1" inputmode="numeric" value="50">
-        <span class="unit">元</span>
-      </div>
-      <div class="field">
-        <label>收費金額取整</label>
-        <div style="padding-top:6px">
-          <label style="display:inline;color:var(--ink)"><input type="checkbox" id="roundUp" checked> 無條件進位到整數元</label>
-        </div>
-      </div>
-    </div>
-    <details style="margin-top:16px" open>
+    <h2>歷次紀錄 <small>點一列可以打開</small></h2>
+    <div id="history"><div class="empty">讀取中…</div></div>
+  </section>
+
+  <section class="card">
+    <details>
       <summary>計算方式</summary>
       <ol class="rules">
         <li>總費用 = 場地費 + 球費，先由所有出席者（含新人）平均分，得到「原本每人」。</li>
         <li>新人付「原本每人 − 折抵金額」（最少 0 元）。</li>
         <li>新人少付的差額，由一般社員平均分攤，所以總額剛好收齊。</li>
         <li>勾選進位時，每人金額進位到整數元，可能多收幾塊錢，會另外列出。</li>
+        <li>每個日期一筆紀錄；同一天再存一次會覆蓋那天的紀錄。</li>
       </ol>
     </details>
   </section>
@@ -184,20 +204,37 @@
 
 <script>
 (function () {
+  // ---- Supabase 設定（publishable key 本來就是公開用的）----
+  var SB_URL = 'https://yhrwfyxjxpvlboziuggv.supabase.co';
+  var SB_KEY = 'sb_publishable_yqjqZ78k31ZBz2hg-28AwA_eyI7HhhU';
+  var API = SB_URL + '/rest/v1/weeks';
+  var HEADERS = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+
   var $ = function (id) { return document.getElementById(id); };
-  var KEY = 'badminton-split-v1';
-  var fields = ['date', 'court', 'ball', 'regN', 'newN', 'regNames', 'newNames', 'disc'];
+  var formFields = ['date', 'court', 'ball', 'regN', 'newN', 'regNames', 'newNames', 'disc', 'roundUp'];
+
+  var weeks = [];          // 雲端上所有紀錄（新到舊）
+  var loaded = null;       // 目前畫面對應的雲端紀錄（沒有則 null）
+  var dirty = false;
+  var lastText = '';
 
   function num(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
   function names(text) {
     return (text || '').split(/[\s,，、;；]+/).map(function (s) { return s.trim(); }).filter(Boolean);
   }
   function fmt(n) { return Math.round(n).toLocaleString('zh-TW'); }
-  function fmt2(n) {
-    return (Math.round(n * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+  function fmt2(n) { return (Math.round(n * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  // 計算核心
+  // ---- 計算核心 ----
   function compute(court, ball, regN, newN, disc) {
     var total = court + ball;
     var people = regN + newN;
@@ -205,9 +242,7 @@
     var base = total / people;
     var res = { total: total, base: base, regN: regN, newN: newN, warn: '' };
     if (regN === 0) {
-      // 沒有一般社員可以分攤差額 → 新人照平均付
-      res.newPay = base;
-      res.regPay = 0;
+      res.newPay = base; res.regPay = 0;
       res.warn = '這週只有新人出席，沒有一般社員可分攤折抵，新人照平均金額付。';
     } else {
       res.newPay = Math.max(0, base - disc);
@@ -215,61 +250,179 @@
     }
     return res;
   }
+  function payFor(w) {
+    var regList = names(w.reg_names), newList = names(w.new_names);
+    var regN = regList.length || w.reg_count, newN = newList.length || w.new_count;
+    var r = compute(+w.court, +w.ball, regN, newN, +w.discount);
+    if (!r) return null;
+    var R = function (x) { return w.round_up ? Math.ceil(x - 1e-9) : x; };
+    return { total: r.total, regN: regN, newN: newN, regPay: R(r.regPay), newPay: R(r.newPay), round: w.round_up };
+  }
 
-  var lastText = '';
+  // ---- 畫面 <-> 資料 ----
+  function readForm() {
+    var regList = names($('regNames').value), newList = names($('newNames').value);
+    return {
+      play_date: $('date').value,
+      court: num($('court').value),
+      ball: num($('ball').value),
+      reg_count: regList.length || Math.floor(num($('regN').value)),
+      new_count: newList.length || Math.floor(num($('newN').value)),
+      reg_names: $('regNames').value.trim(),
+      new_names: $('newNames').value.trim(),
+      discount: num($('disc').value),
+      round_up: $('roundUp').checked
+    };
+  }
+  function fillForm(w, date) {
+    if (w) {
+      $('date').value = w.play_date;
+      $('court').value = +w.court || '';
+      $('ball').value = +w.ball || '';
+      $('regN').value = w.reg_count || '';
+      $('newN').value = w.new_count || '';
+      $('regNames').value = w.reg_names || '';
+      $('newNames').value = w.new_names || '';
+      $('disc').value = +w.discount;
+      $('roundUp').checked = !!w.round_up;
+      if (w.reg_names || w.new_names) $('namesBox').open = true;
+    } else {
+      // 新的一天：沿用最近一次的折抵與進位設定
+      var last = weeks[0];
+      $('date').value = date;
+      ['court', 'ball', 'regN', 'newN', 'regNames', 'newNames'].forEach(function (f) { $(f).value = ''; });
+      $('disc').value = last ? +last.discount : 50;
+      $('roundUp').checked = last ? !!last.round_up : true;
+    }
+    loaded = w || null;
+    setDirty(false);
+    render();
+  }
+  function setDirty(v) {
+    dirty = v;
+    var m = $('saveMsg');
+    if (v) { m.textContent = '● 有變更還沒存'; m.className = 'msg dirty'; }
+    else if (loaded) { m.textContent = '已存在雲端 · ' + new Date(loaded.updated_at).toLocaleString('zh-TW', { hour12: false }); m.className = 'msg ok'; }
+    else { m.textContent = ''; m.className = 'msg'; }
+    $('recState').textContent = loaded ? '（雲端紀錄）' : '（新紀錄，還沒存）';
+  }
+  function findWeek(date) {
+    for (var i = 0; i < weeks.length; i++) if (weeks[i].play_date === date) return weeks[i];
+    return null;
+  }
 
+  // ---- 雲端 ----
+  function setStatus(state, text) {
+    $('dot').className = 'dot' + (state ? ' ' + state : '');
+    $('statusText').textContent = text;
+  }
+  function fetchWeeks() {
+    return fetch(API + '?select=*&order=play_date.desc', { headers: HEADERS }).then(function (r) {
+      if (!r.ok) throw new Error('讀取失敗（' + r.status + '）');
+      return r.json();
+    }).then(function (rows) {
+      weeks = rows;
+      setStatus('ok', '已連線雲端 · 共 ' + rows.length + ' 筆紀錄');
+      renderHistory();
+      return rows;
+    });
+  }
+  function save() {
+    var data = readForm();
+    if (!data.play_date) { showMsg('請先選日期', 'bad'); return; }
+    $('save').disabled = true;
+    showMsg('儲存中…', '');
+    hideNotice();
+    // 先確認這期間沒有別人改過同一天
+    fetch(API + '?select=updated_at&play_date=eq.' + data.play_date, { headers: HEADERS })
+      .then(function (r) { if (!r.ok) throw new Error('讀取失敗（' + r.status + '）'); return r.json(); })
+      .then(function (rows) {
+        var remote = rows[0] ? rows[0].updated_at : null;
+        var mine = loaded && loaded.play_date === data.play_date ? loaded.updated_at : null;
+        if (remote && remote !== mine && !save.force) {
+          save.force = true;
+          throw { conflict: true };
+        }
+        save.force = false;
+        return fetch(API + '?on_conflict=play_date', {
+          method: 'POST',
+          headers: Object.assign({ Prefer: 'resolution=merge-duplicates,return=representation' }, HEADERS),
+          body: JSON.stringify(data)
+        });
+      })
+      .then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error('儲存失敗（' + r.status + '）' + t); });
+        return r.json();
+      })
+      .then(function (rows) {
+        loaded = rows[0];
+        return fetchWeeks();
+      })
+      .then(function () {
+        setDirty(false);
+        showMsg('已存到雲端 ✓', 'ok');
+        setTimeout(function () { if (!dirty) setDirty(false); }, 2500);
+      })
+      .catch(function (e) {
+        if (e && e.conflict) {
+          showNotice('別人剛剛也存過 ' + data.play_date + ' 的紀錄。按「重新讀取」看最新版本，或再按一次「儲存到雲端」用你的版本覆蓋。', true);
+          showMsg('', '');
+        } else {
+          save.force = false;
+          showMsg(e.message || '儲存失敗，請檢查網路', 'bad');
+        }
+      })
+      .then(function () { $('save').disabled = false; });
+  }
+  function showMsg(t, cls) { var m = $('saveMsg'); m.textContent = t; m.className = 'msg' + (cls ? ' ' + cls : ''); }
+  function showNotice(t, withReload) {
+    var n = $('notice');
+    n.innerHTML = esc(t) + (withReload ? ' <button class="ghost" id="reloadDay" style="margin-left:6px;padding:4px 10px;font-size:.85rem">重新讀取</button>' : '');
+    n.style.display = 'block';
+    if (withReload) $('reloadDay').onclick = function () {
+      hideNotice(); save.force = false;
+      fetchWeeks().then(function () { fillForm(findWeek($('date').value), $('date').value); });
+    };
+  }
+  function hideNotice() { $('notice').style.display = 'none'; }
+
+  // ---- 畫面 ----
   function render() {
-    var regList = names($('regNames').value);
-    var newList = names($('newNames').value);
-    var regN = regList.length ? regList.length : Math.floor(num($('regN').value));
-    var newN = newList.length ? newList.length : Math.floor(num($('newN').value));
-    if (regList.length) $('regN').value = regN;
-    if (newList.length) $('newN').value = newN;
-
-    var court = num($('court').value), ball = num($('ball').value), disc = num($('disc').value);
+    var data = readForm();
+    var regList = names(data.reg_names), newList = names(data.new_names);
+    if (regList.length) $('regN').value = regList.length;
+    if (newList.length) $('newN').value = newList.length;
+    var regN = data.reg_count, newN = data.new_count;
+    var court = data.court, ball = data.ball, disc = data.discount;
     var r = compute(court, ball, regN, newN, disc);
     var out = $('result');
-    if (!r) {
-      out.innerHTML = '<div class="empty">填上金額和人數就會顯示</div>';
-      lastText = '';
-      save();
-      return;
-    }
-    var roundUp = $('roundUp').checked;
+    if (!r) { out.innerHTML = '<div class="empty">填上金額和人數就會顯示</div>'; lastText = ''; return; }
+
+    var roundUp = data.round_up;
     var R = function (x) { return roundUp ? Math.ceil(x - 1e-9) : x; };
     var regPay = R(r.regPay), newPay = R(r.newPay);
     var collected = regPay * regN + newPay * newN;
     var extra = collected - r.total;
+    var amtStr = function (x) { return roundUp ? fmt(x) : fmt2(x); };
 
     var h = '<div class="result-head">';
     if (regN > 0) {
-      h += '<div class="pay reg"><div class="who">一般社員（' + regN + ' 人）每人</div>' +
-           '<div class="amt">' + (roundUp ? fmt(regPay) : fmt2(regPay)) + ' 元</div>' +
+      h += '<div class="pay reg"><div class="who">一般社員（' + regN + ' 人）每人</div><div class="amt">' + amtStr(regPay) + ' 元</div>' +
            (roundUp && Math.abs(regPay - r.regPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.regPay) + ' 元</div>' : '') + '</div>';
     }
     if (newN > 0) {
-      h += '<div class="pay nw"><div class="who">新人（' + newN + ' 人）每人</div>' +
-           '<div class="amt">' + (roundUp ? fmt(newPay) : fmt2(newPay)) + ' 元</div>' +
+      h += '<div class="pay nw"><div class="who">新人（' + newN + ' 人）每人</div><div class="amt">' + amtStr(newPay) + ' 元</div>' +
            (roundUp && Math.abs(newPay - r.newPay) > 1e-9 ? '<div class="exact">精算 ' + fmt2(r.newPay) + ' 元</div>' : '') + '</div>';
     }
-    h += '</div>';
-
-    h += '<table>';
+    h += '</div><table>';
     h += '<tr><td>場地費</td><td class="num">' + fmt2(court) + ' 元</td></tr>';
     h += '<tr><td>球費</td><td class="num">' + fmt2(ball) + ' 元</td></tr>';
     h += '<tr><td>總費用</td><td class="num">' + fmt2(r.total) + ' 元</td></tr>';
     h += '<tr><td>原本每人（' + (regN + newN) + ' 人平均）</td><td class="num">' + fmt2(r.base) + ' 元</td></tr>';
-    if (newN > 0 && regN > 0) {
-      var gap = (r.base - r.newPay) * newN;
-      h += '<tr><td>新人折抵合計（由一般社員分攤）</td><td class="num">' + fmt2(gap) + ' 元</td></tr>';
-    }
-    h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(collected) + ' 元</td></tr>';
-    h += '</table>';
+    if (newN > 0 && regN > 0) h += '<tr><td>新人折抵合計（由一般社員分攤）</td><td class="num">' + fmt2((r.base - r.newPay) * newN) + ' 元</td></tr>';
+    h += '<tr class="total"><td>實收合計</td><td class="num">' + fmt2(collected) + ' 元</td></tr></table>';
     if (extra > 0.004) h += '<p class="hint">因進位多收 ' + fmt2(extra) + ' 元，可放進社費。</p>';
     if (r.warn) h += '<p class="warn">' + r.warn + '</p>';
-
-    // 名單
-    var amtStr = function (x) { return roundUp ? fmt(x) : fmt2(x); };
     if (regList.length || newList.length) {
       h += '<table style="margin-top:14px"><tr><th>名字</th><th class="num">要付</th></tr>';
       regList.forEach(function (n) { h += '<tr><td>' + esc(n) + '</td><td class="num">' + amtStr(regPay) + ' 元</td></tr>'; });
@@ -278,8 +431,7 @@
     }
     out.innerHTML = h;
 
-    // 訊息文字
-    var d = $('date').value;
+    var d = data.play_date;
     var t = '🏸 羽球社 ' + (d ? d.replace(/-/g, '/') + ' ' : '') + '費用\n';
     t += '場地費 ' + fmt2(court) + ' + 球費 ' + fmt2(ball) + ' = ' + fmt2(r.total) + ' 元\n';
     if (regN > 0) t += '一般社員 ' + regN + ' 人：每人 ' + amtStr(regPay) + ' 元\n';
@@ -290,69 +442,86 @@
       newList.forEach(function (n) { t += n + '（新人） ' + amtStr(newPay) + '\n'; });
     }
     lastText = t.trim();
-    save();
   }
 
-  function esc(s) {
-    return s.replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  function renderHistory() {
+    var box = $('history');
+    if (!weeks.length) { box.innerHTML = '<div class="empty">還沒有紀錄，填好這週按「儲存到雲端」就會出現在這裡</div>'; return; }
+    var cur = $('date').value;
+    var h = '<table><tr><th>日期</th><th class="num">總費用</th><th class="num">人數</th><th class="num">社員／新人每人</th></tr>';
+    weeks.forEach(function (w) {
+      var p = payFor(w);
+      var s = function (x) { return p && p.round ? fmt(x) : fmt2(x); };
+      h += '<tr class="row' + (w.play_date === cur ? ' current' : '') + '" data-date="' + esc(w.play_date) + '">' +
+        '<td>' + esc(w.play_date.replace(/-/g, '/')) + '</td>' +
+        '<td class="num">' + (p ? fmt2(p.total) : '—') + '</td>' +
+        '<td class="num">' + (p ? (p.regN + p.newN) : '—') + '</td>' +
+        '<td class="num">' + (p ? (p.regN ? s(p.regPay) : '—') + ' ／ ' + (p.newN ? s(p.newPay) : '—') : '—') + '</td></tr>';
+    });
+    box.innerHTML = h + '</table>';
+    Array.prototype.forEach.call(box.querySelectorAll('tr.row'), function (tr) {
+      tr.onclick = function () { openDate(tr.getAttribute('data-date')); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     });
   }
 
-  function save() {
-    try {
-      var o = { roundUp: $('roundUp').checked };
-      fields.forEach(function (f) { o[f] = $(f).value; });
-      localStorage.setItem(KEY, JSON.stringify(o));
-    } catch (e) {}
-  }
-  function load() {
-    try {
-      var o = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (!o) return;
-      fields.forEach(function (f) { if (o[f] != null) $(f).value = o[f]; });
-      if (o.roundUp != null) $('roundUp').checked = o.roundUp;
-    } catch (e) {}
+  function openDate(date) {
+    if (dirty && !window.confirm('目前的變更還沒存，確定要切換嗎？')) { return false; }
+    hideNotice(); save.force = false;
+    fillForm(findWeek(date), date);
+    renderHistory();
+    return true;
   }
 
-  function toast(msg) {
-    $('toast').textContent = msg;
-    clearTimeout(toast.t);
-    toast.t = setTimeout(function () { $('toast').textContent = ''; }, 2200);
-  }
+  // ---- 事件 ----
+  formFields.forEach(function (f) {
+    if (f === 'date') return;
+    $(f).addEventListener('input', function () { setDirty(true); render(); });
+    $(f).addEventListener('change', function () { setDirty(true); render(); });
+  });
+  var prevDate = '';
+  $('date').addEventListener('focus', function () { prevDate = $('date').value; });
+  $('date').addEventListener('change', function () {
+    var d = $('date').value;
+    if (!d) return;
+    var w = findWeek(d);
+    if (w) {
+      if (!openDate(d)) $('date').value = prevDate;
+    } else {
+      // 換到沒有紀錄的日期：保留目前填的內容，視為新紀錄
+      loaded = null; setDirty(true); render(); renderHistory();
+    }
+    prevDate = $('date').value;
+  });
+  $('save').addEventListener('click', save);
+  $('newWeek').addEventListener('click', function () { openDate(today()); });
 
   $('copy').addEventListener('click', function () {
+    var toast = function (m) { $('toast').textContent = m; clearTimeout(toast.t); toast.t = setTimeout(function () { $('toast').textContent = ''; }, 2200); };
     if (!lastText) { toast('還沒有可以複製的內容'); return; }
     var done = function () { toast('已複製 ✓'); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(lastText).then(done, fallback);
-    } else { fallback(); }
-    function fallback() {
+    var fallback = function () {
       var ta = document.createElement('textarea');
       ta.value = lastText; document.body.appendChild(ta); ta.select();
       try { document.execCommand('copy'); done(); } catch (e) { toast('複製失敗，請手動選取'); }
       document.body.removeChild(ta);
-    }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lastText).then(done, fallback);
+    else fallback();
   });
 
-  $('clear').addEventListener('click', function () {
-    ['court', 'ball', 'regN', 'newN', 'regNames', 'newNames'].forEach(function (f) { $(f).value = ''; });
-    $('date').value = today();
-    render();
-  });
+  window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
-  function today() {
-    var d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
-
-  load();
-  if (!$('date').value) $('date').value = today();
-  fields.concat(['roundUp']).forEach(function (f) {
-    $(f).addEventListener('input', render);
-    $(f).addEventListener('change', render);
+  // ---- 啟動：打開最近一次紀錄；沒有就開今天 ----
+  $('date').value = today();
+  fetchWeeks().then(function () {
+    var w = findWeek(today()) || weeks[0] || null;
+    fillForm(w, today());
+    renderHistory();
+  }).catch(function (e) {
+    setStatus('bad', '連不上雲端：' + e.message + '（可以先算，但無法儲存）');
+    $('history').innerHTML = '<div class="empty">連不上雲端</div>';
+    fillForm(null, today());
   });
-  render();
 })();
 </script>
 </body>
